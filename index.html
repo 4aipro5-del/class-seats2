@@ -16,6 +16,10 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+    <!-- 엑셀 파일 파싱 라이브러리 (SheetJS) -->
+
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
     <!-- 귀여운 개구 폰트 적용 -->
 
     <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
@@ -259,6 +263,24 @@
                     <textarea id="student-input" rows="6" class="w-full p-4 rounded-2xl border-2 border-orange-50 focus:border-orange-200 focus:outline-none transition text-lg" placeholder="이름,성별(남/여) 형식으로 입력하세요.&#10;예: 김철수,남&#10;이영희,여"></textarea>
 
                     <button onclick="parseStudents()" class="w-full mt-2 bg-orange-400 hover:bg-orange-500 text-white py-3 rounded-xl transition font-bold shadow-md text-lg">명단 업데이트</button>
+
+                    <!-- 엑셀 업로드 -->
+
+                    <div class="mt-3 pt-3 border-t-2 border-dashed border-orange-100">
+
+                        <p class="text-xs text-gray-400 mb-2 text-center font-bold">또는 엑셀로 한 번에 불러오기</p>
+
+                        <label for="excel-input" class="flex items-center justify-center gap-2 w-full bg-white border-2 border-dashed border-orange-300 hover:border-orange-500 hover:bg-orange-50 text-orange-400 hover:text-orange-600 py-3 rounded-xl transition font-bold text-lg cursor-pointer">
+
+                            <span>📊</span> 엑셀 파일 선택
+
+                        </label>
+
+                        <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="uploadExcel(this)">
+
+                        <p class="text-xs text-gray-400 mt-1.5 text-center">A열: 이름&nbsp;&nbsp;|&nbsp;&nbsp;B열: 성별(남/여)&nbsp;&nbsp;|&nbsp;&nbsp;1행 헤더 자동 감지</p>
+
+                    </div>
 
                 </div>
 
@@ -545,6 +567,100 @@
                 studentInput.value = data.inputText || "";
 
             }
+
+        }
+
+
+
+        function uploadExcel(input) {
+
+            const file = input.files[0];
+
+            if (!file) return;
+
+
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+
+                try {
+
+                    const data = new Uint8Array(e.target.result);
+
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+
+
+                    // 첫 번째 시트 사용
+
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+
+
+                    const HEADER_KEYWORDS = ['이름', '성명', 'name', '성별', '학생'];
+
+                    const lines = [];
+
+
+
+                    rows.forEach((row, rowIdx) => {
+
+                        const rawName = row[0]?.toString().trim();
+
+                        const rawGender = row[1]?.toString().trim();
+
+
+
+                        if (!rawName) return;
+
+
+
+                        // 헤더 행 자동 감지 (첫 행이 "이름", "성명" 등의 텍스트이면 스킵)
+
+                        if (rowIdx === 0 && HEADER_KEYWORDS.some(kw => rawName.toLowerCase().includes(kw))) return;
+
+
+
+                        // 성별 정규화: 여/f/F/여자 → 여, 그 외 → 남
+
+                        const gender = ['여', 'f', 'F', '여자', 'female', 'girl'].includes(rawGender) ? '여' : '남';
+
+                        lines.push(`${rawName},${gender}`);
+
+                    });
+
+
+
+                    if (lines.length > 0) {
+
+                        studentInput.value = lines.join('\n');
+
+                        parseStudents();
+
+                        input.value = ''; // 같은 파일 재업로드 허용
+
+                        alert(`✅ ${lines.length}명의 명단을 불러왔습니다!`);
+
+                    } else {
+
+                        alert('⚠️ 학생 데이터를 찾을 수 없습니다.\n엑셀 A열: 이름, B열: 성별(남/여) 형식인지 확인해주세요.');
+
+                    }
+
+                } catch (err) {
+
+                    alert('⚠️ 파일을 읽는 중 오류가 발생했습니다.\n.xlsx, .xls, .csv 파일만 지원합니다.');
+
+                    console.error(err);
+
+                }
+
+            };
+
+            reader.readAsArrayBuffer(file);
 
         }
 
